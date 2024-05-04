@@ -7,3 +7,4 @@ langchain
 bs4
 pypdf
 rapidocr-onnxruntime
+ipykernel

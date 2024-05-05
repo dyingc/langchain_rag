@@ -14,9 +14,13 @@ import argparse
 
 class BasicRAG():
     def __init__(self):
+        os.environ['LANGCHAIN_TRACING_V2'] = 'true'
+        os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
+        os.environ['LANGCHAIN_API_KEY'] = # "<Your Langchain API key so that you can see the trace information.>"
+        os.environ["LANGCHAIN_PROJECT"] = "basic_rag_python"
         self.encoder = tiktoken.get_encoding("cl100k_base")
 
-    def _split_doc(self, docs, chunk_size:int=1024, chunk_overlap:int=128):
+    def _split_doc(self, docs, chunk_size:int=512, chunk_overlap:int=128):
         splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap, length_function=self._num_tokens)
         return splitter.split_documents(docs)
     
@@ -74,7 +78,8 @@ class GroqPDFRAG(PDFRAG):
         super().gen_embedding()
         self.vectorstore = Chroma.from_documents(documents=self.splits, 
                             embedding=OllamaEmbeddings(model="mofanke/acge_text_embedding:latest"))
-        self.retriever = self.vectorstore.as_retriever()
+        n_retrieval = 3
+        self.retriever = self.vectorstore.as_retriever(search_kwargs={"k": n_retrieval})
 
     def gen_prompt(self):
         super().gen_prompt()

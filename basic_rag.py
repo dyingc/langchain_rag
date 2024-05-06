@@ -16,7 +16,7 @@ class BasicRAG():
     def __init__(self):
         os.environ['LANGCHAIN_TRACING_V2'] = 'true'
         os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
-        os.environ['LANGCHAIN_API_KEY'] = # "<Your Langchain API key so that you can see the trace information.>"
+        # os.environ['LANGCHAIN_API_KEY'] = # "<Your Langchain API key so that you can see the trace information.>"
         os.environ["LANGCHAIN_PROJECT"] = "basic_rag_python"
         self.encoder = tiktoken.get_encoding("cl100k_base")
 

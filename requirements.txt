@@ -2,6 +2,7 @@ langchain_community
 tiktoken
 langchain-openai
 langchain-groq
+langchain-pinecone
 langchainhub
 chromadb
 langchain

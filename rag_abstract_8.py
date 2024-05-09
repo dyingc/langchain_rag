@@ -1,15 +1,13 @@
-# Ref: https://github.com/langchain-ai/langchain/blob/master/cookbook/rag_fusion.ipynb?ref=blog.langchain.dev
-
 from abc import ABC, abstractmethod
-import bs4, os, re
+import bs4, os, re, json
 from langchain import hub
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import WebBaseLoader, PyPDFLoader
 from langchain_community.vectorstores import Chroma
 from langchain_community.embeddings import OllamaEmbeddings
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough, RunnableLambda
+from langchain_core.prompts import ChatPromptTemplate, FewShotChatMessagePromptTemplate
 from langchain_groq import ChatGroq
 from langchain_pinecone import PineconeVectorStore
 from langchain.load import dumps, loads
@@ -17,13 +15,13 @@ import tiktoken
 import argparse
 from operator import itemgetter
 
-def set_env():
+def set_env(project_name:str):
     def os_param_not_set(param:str)->bool:
         return os.environ.get(param) is None or os.environ.get(param) == ""
     
     os.environ['LANGCHAIN_TRACING_V2'] = 'true'
     os.environ['LANGCHAIN_ENDPOINT'] = 'https://api.smith.langchain.com'
-    os.environ["LANGCHAIN_PROJECT"] = "rag_fusion_6_python"
+    os.environ["LANGCHAIN_PROJECT"] = project_name
     if os_param_not_set("LANGCHAIN_API_KEY"):
         os.environ['LANGCHAIN_TRACING_V2'] = None
         os.environ['LANGCHAIN_ENDPOINT'] = None
@@ -83,70 +81,89 @@ def get_retriever(docs, k:int=3, index_name:str="rag-fusion-6"):
     retriever = vectorstore.as_retriever(search_kwargs={"k": k})
     return retriever
 
-def get_fusion_chain(retriever, n_multiply:int=4, k:int=60):
-
-    def reciprocal_rank_fusion(results: list[list], k:int=k):
-        """ Reciprocal_rank_fusion that takes multiple lists of ranked documents 
-            and an optional parameter k used in the RRF formula """
-        
-        # Initialize a dictionary to hold fused scores for each unique document
-        fused_scores = {}
-
-        # Iterate through each list of ranked documents
-        for docs in results:
-            # Iterate through each document in the list, with its rank (position in the list)
-            for rank, doc in enumerate(docs):
-                # Convert the document to a string format to use as a key (assumes documents can be serialized to JSON)
-                doc_str = dumps(doc)
-                # If the document is not yet in the fused_scores dictionary, add it with an initial score of 0
-                if doc_str not in fused_scores:
-                    fused_scores[doc_str] = 0
-                # Retrieve the current score of the document, if any
-                previous_score = fused_scores[doc_str]
-                # Update the score of the document using the RRF formula: 1 / (rank + k)
-                fused_scores[doc_str] += 1 / (rank + k)
-
-
-        reranked_results = [
-            (loads(doc), score)
-            for doc, score in sorted(fused_scores.items(), key=lambda x: x[1], reverse=True)
+def get_query_enhance_chain(): # Using abstract examples
+    with open('data/rag_abstract_examples.json') as f:
+        examples = json.load(f)
+    llm = get_llm(temperature=.7, model="llama3-8b-8192")
+    example_prompt = ChatPromptTemplate.from_messages(
+        [
+            ("human", "{input}"),
+            ("ai", "{output}"),
         ]
-        return reranked_results[:k]
+    )
 
-    multiply_prompt = hub.pull("langchain-ai/rag-fusion-query-generation")
-    multiply_prompt.messages[2].prompt.template = f'OUTPUT ({n_multiply} queries)'
-    llm = get_llm(temperature=0, model="llama3-8b-8192")
-    multiply_chain = (multiply_prompt | llm | StrOutputParser() | (lambda x: x.split('\n')))
-    fusion_chain = multiply_chain | retriever.map() | reciprocal_rank_fusion
-    return fusion_chain
+    few_shot_prompt = FewShotChatMessagePromptTemplate(example_prompt=example_prompt, examples=examples)
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                """You are an expert at world knowledge. Your task is to step back and paraphrase a question to a more generic step-back question, which is easier to answer. Here are a few examples:""",
+            ),
+            # Few shot examples
+            few_shot_prompt,
+            # New question
+            ("user", "{question}"),
+        ]
+    )
+    chain = prompt | llm | StrOutputParser() # | RunnablePassthrough()
+    return chain
+    
+def get_final_rag_chain(query_enchance_chain, retriever):
+    def get_unique_union(documents: list[list]):
+        """ Unique union of retrieved docs """
+        # Flatten list of lists, and convert each Document to string
+        flattened_docs = [dumps(doc) for doc in documents]
+        # Get unique documents
+        unique_docs = list(set(flattened_docs))
+        # Return
+        return [loads(doc).page_content for doc in unique_docs]
 
-def get_rag_chain(retrieval_chain):
-    llm = get_llm(temperature=1, model="llama3-8b-8192")
-    template = """Answer the following question based on this context:
+    llm = get_llm(temperature=.7, model="llama3-8b-8192")
 
-```
-{context}
-```
+    # Response prompt 
+    response_prompt_template = """You are an expert of world knowledge. I am going to ask you a question. Your response should be comprehensive and not contradicted with the following context if they are relevant. Otherwise, ignore them if they are not relevant.
 
-Question: {question}
-"""
-    rag_prompt = ChatPromptTemplate.from_template(template)
-    final_rag_chain = (
-        {"context": retrieval_chain, 
-        "question": itemgetter("question")} 
-        | rag_prompt
+    # Direct context:
+    ```
+    {normal_context}
+    ```
+
+    # More abstract context:
+    ```
+    {step_back_context}
+    ```
+
+    # Original Question: {question}
+    # Answer:"""
+    response_prompt = ChatPromptTemplate.from_template(response_prompt_template)
+
+    rag_chain = (
+        {
+            # Retrieve context using the normal question
+            "normal_context": RunnableLambda(lambda x: x["question"]) | retriever | get_unique_union,
+            # Retrieve context using the step-back question
+            "step_back_context": query_enchance_chain | retriever | get_unique_union,
+            # Pass on the question
+            "question": lambda x: x["question"],
+        }
+        | response_prompt
         | llm
         | StrOutputParser()
     )
-    return final_rag_chain
+    return rag_chain
+
+
 
 def main(pdf_path:str, question:str):
-    set_env()
+    set_env(project_name="rag_abstract_8_python")
     splits = split_pdf(pdf_source=pdf_path)
-    index_name = get_index_name(prefix="rag-fusion-6", data_source=pdf_path)
-    retrieval_chain = get_fusion_chain(retriever=get_retriever(splits, index_name=index_name), n_multiply=3, k=5)
-    final_rag_chain = get_rag_chain(retrieval_chain)
-    answer = final_rag_chain.invoke({"original_query": question, "question": question})
+    index_name = get_index_name(prefix="rag-abstract-8", data_source=pdf_path)
+    retriever = get_retriever(docs=splits, k=5, index_name=index_name)
+    query_enhance_chain = get_query_enhance_chain()
+    # enhanced_question = query_enhance_chain.invoke({"question": question})
+    # print(f"Enhanced question: {enhanced_question}")
+    final_rag_chain = get_final_rag_chain(query_enhance_chain, retriever)
+    answer = final_rag_chain.invoke({"question": question})
     print({"question": question, "answer": answer})
 
 

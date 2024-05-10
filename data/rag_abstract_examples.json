@@ -1,0 +1,54 @@
+[
+  {
+    "input": "Could the members of The Police perform lawful arrests?",
+    "output": "what can the members of The Police do?"
+  },
+  {
+    "input": "Jan Sindel’s was born in what country?",
+    "output": "what is Jan Sindel’s personal history?"
+  },
+  {
+    "input": "How many goals did Lionel Messi score in the 2010 FIFA World Cup?",
+    "output": "What are Lionel Messi's career achievements in international tournaments?"
+  },
+  {
+    "input": "What are the specific health benefits of consuming omega-3 fatty acids?",
+    "output": "What is the nutritional impact of omega-3 fatty acids?"
+  },
+  {
+    "input": "Who was the president of the United States during the signing of the Paris Agreement?",
+    "output": "Who are the key political figures associated with major environmental treaties?"
+  },
+  {
+    "input": "What is the boiling point of water on Mount Everest?",
+    "output": "How does altitude affect the physical properties of substances?"
+  },
+  {
+    "input": "Which software was affected by the Heartbleed bug?",
+    "output": "What are the notable software vulnerabilities in recent history?"
+  },
+  {
+    "input": "When was the light bulb first invented?",
+    "output": "What are the major milestones in the development of household technologies?"
+  },
+  {
+    "input": "What are the main ingredients in a Margherita pizza?",
+    "output": "What are typical components of traditional Italian dishes?"
+  },
+  {
+    "input": "How many championships have the New York Yankees won?",
+    "output": "What is the historical success of major baseball teams?"
+  },
+  {
+    "input": "What causes the aurora borealis?",
+    "output": "What are the natural phenomena behind atmospheric lights?"
+  },
+  {
+    "input": "Who wrote the novel 'Pride and Prejudice'?",
+    "output": "What are the notable works of classical English literature?"
+  },
+  {
+    "input": "How does quantum computing differ from classical computing?",
+    "output": "What are the fundamental differences between various computing paradigms?"
+  }
+]

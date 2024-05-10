@@ -10,3 +10,4 @@ bs4
 pypdf
 rapidocr-onnxruntime
 ipykernel
+unstructured[all-docs]==0.10.19

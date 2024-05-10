@@ -11,7 +11,9 @@
             "request": "launch",
             "program": "${file}",
             "console": "integratedTerminal",
-            "args": "--pdf_path /tmp/LLM_Safety_Fail.pdf --question \"What is jailbreak?\""
+            // "args": "--pdf_path \"/Users/yingdong/Downloads/How to start the OCI ORM scan fo_ffcef02f864e49339f81a508a1eee540-080524-0300-264.pdf\" --question \"How to generate a report after the ORM API testing is finished?\""
+            "args": "--pdf_path \"/Users/yingdong/Downloads/Approved Security Technologies: Standards - TLS Ciphers and Versions - Global Product Security - ALM Confluence.pdf\" --question \"Can you directly give me the list of approved cipher suites?\""
+            // "args": "--pdf_path /tmp/LLM_Safety_Fail.pdf --question \"What are the failure modes of safety training in LLMs as identified in the paper?\""
         }
     ]
 }
